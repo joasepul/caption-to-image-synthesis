@@ -8,10 +8,10 @@ import os
 # this selects the first 1975 images, change the regex if you want more
 img_paths = glob.glob('/coco2017/train2017/*.jpg')
 training_imgs_num = len(img_paths)
-print(f'loaded a total of {training_imgs_num} imgs')
+print(f'loaded a total of {training_imgs_num} imgs.')
 
 
-print(f'Cleaning and saving {training_imgs_num} imgs to /coco2017/cleaned-data')
+print(f'Cleaning and saving {training_imgs_num} imgs to /coco2017/cleaned-data/ ...')
 os.mkdir( '/coco2017/cleaned-data') if not os.path.exists('/coco2017/cleaned-data') else None
 
 for img_path in img_paths:
@@ -31,6 +31,7 @@ for img_path in img_paths:
         
     img = cv2.resize(img, (128,128))
     cv2.imwrite(os.path.join('/coco2017/cleaned-data', img_path.split('/')[-1]), img)
+print("Done cleaning and saving.")
 
 
 # category_mapping = {}
@@ -63,7 +64,7 @@ def clean_caption(cap):
     return cap
     
 
-
+print("Generating caption/categories csv...")
 with open('/coco2017/annotations/captions_train2017.json') as annot_file:
     captions_df = pd.read_json(annot_file, typ='series')
     annot_df = pd.DataFrame(data=captions_df['annotations'])
@@ -93,5 +94,11 @@ with open('/coco2017/annotations/captions_train2017.json') as annot_file:
         annot_df.insert(1, 'categories', image_cats.values())
         annot_df.insert(2, 'super_categories', list(map(multihot_encode, list(image_supercats.values()))))
 
+print("Generated.")
 
+print("Saving file coco-captions-with-categories.csv...")
 annot_df.to_csv('/coco2017/coco-captions-with-categories.csv')
+print("Saved.")
+
+print("Data cleaning done.")
+
