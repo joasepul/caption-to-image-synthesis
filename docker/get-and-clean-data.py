@@ -3,35 +3,36 @@ import glob
 import numpy as np
 import math
 import os
+import traceback
 
 
-# this selects the first 1975 images, change the regex if you want more
-img_paths = glob.glob('/coco2017/train2017/*.jpg')
-training_imgs_num = len(img_paths)
-print(f'loaded a total of {training_imgs_num} imgs.')
+# this selects all images, change the regex if you want less
+# img_paths = glob.glob('/coco2017/train2017/*.jpg')
+# training_imgs_num = len(img_paths)
+# print(f'loaded a total of {training_imgs_num} imgs.')
 
 
-print(f'Cleaning and saving {training_imgs_num} imgs to /coco2017/cleaned-data/ ...')
-os.mkdir( '/coco2017/cleaned-data') if not os.path.exists('/coco2017/cleaned-data') else None
+# print(f'Cleaning and saving {training_imgs_num} imgs to /coco2017/cleaned-data/ ...')
+# os.mkdir( '/coco2017/cleaned-data') if not os.path.exists('/coco2017/cleaned-data') else None
 
-for img_path in img_paths:
-    img = cv2.imread(img_path)
-    y,x,_ = img.shape #(y, x) not (x, y)
+# for img_path in img_paths:
+#     img = cv2.imread(img_path)
+#     y,x,_ = img.shape #(y, x) not (x, y)
     
-    margin = abs(y-x)/2
-    if x > y:        
-        # Image is tall
-        img = img[:,int(math.floor(margin)):int(math.floor(x-margin))]
-    elif y > x:
-        # Image is wide
-        img = img[int(math.floor(margin)):int(math.floor(y-margin)),:]
+#     margin = abs(y-x)/2
+#     if x > y:        
+#         # Image is tall
+#         img = img[:,int(math.floor(margin)):int(math.floor(x-margin))]
+#     elif y > x:
+#         # Image is wide
+#         img = img[int(math.floor(margin)):int(math.floor(y-margin)),:]
 
-    if (img.shape[0] != img.shape[1]):
-        print('Dim mismatch')
+#     if (img.shape[0] != img.shape[1]):
+#         print('Dim mismatch')
         
-    img = cv2.resize(img, (128,128))
-    cv2.imwrite(os.path.join('/coco2017/cleaned-data', img_path.split('/')[-1]), img)
-print("Done cleaning and saving.")
+#     img = cv2.resize(img, (128,128))
+#     cv2.imwrite(os.path.join('/coco2017/cleaned-data', img_path.split('/')[-1]), img)
+# print("Done cleaning and saving.")
 
 
 # category_mapping = {}
@@ -65,34 +66,39 @@ def clean_caption(cap):
     
 
 print("Generating caption/categories csv...")
-with open('/coco2017/annotations/captions_train2017.json') as annot_file:
-    captions_df = pd.read_json(annot_file, typ='series')
-    annot_df = pd.DataFrame(data=captions_df['annotations'])
-    annot_df = annot_df.astype({'image_id': 'int32'})
-    annot_df.sort_values(by=['image_id'], axis=0, inplace=True)
-    annot_df['caption'] = annot_df['caption'].apply(clean_caption)
-    annot_df = annot_df.groupby('image_id')['image_id', 'caption'].agg('|'.join)
-    
+try:
+    with open('/coco2017/annotations/captions_train2017.json') as annot_file:
+        captions_df = pd.read_json(annot_file, typ='series')
+        annot_df = pd.DataFrame(data=captions_df['annotations'])
+        annot_df = annot_df.astype({'image_id': 'int32'})
+        annot_df.sort_values(by=['image_id'], axis=0, inplace=True)
+        annot_df['caption'] = annot_df['caption'].apply(clean_caption)
+        annot_df = annot_df.groupby('image_id')['image_id', 'caption'].agg('|'.join)
+        
 
-    with open('/coco2017/annotations/instances_train2017.json') as instance_file:
-        instances_df = pd.read_json(instance_file, typ='series')
-        
-        category_mapping = {}
+        with open('/coco2017/annotations/instances_train2017.json') as instance_file:
+            instances_df = pd.read_json(instance_file, typ='series')
+            
+            category_mapping = {}
 
-        numeric_mapping = { 'person' : 1, 'vehicle' : 2, 'outdoor' : 3, 'animal' : 4, 'accessory' : 5, 'sports' : 6,         'kitchen' : 7, 'food' : 8, 'furniture' : 9, 'electronic' : 10, 'appliance' : 11, 'indoor' : 12 }
+            numeric_mapping = { 'person' : 1, 'vehicle' : 2, 'outdoor' : 3, 'animal' : 4, 'accessory' : 5, 'sports' : 6, 'kitchen' : 7, 'food' : 8, 'furniture' : 9, 'electronic' : 10, 'appliance' : 11, 'indoor' : 12 }
 
-        for dic in instances_df.categories:
-            category_mapping[dic['id']] = numeric_mapping[dic['supercategory']]
-        
-        image_cats = {i : [] for i in list(annot_df.index)}
-        image_supercats = {i : [] for i in list(annot_df.index)}
-        
-        for row in instances_df.annotations:
-            image_cats[row['image_id']].append(row['category_id'])
-            image_supercats[row['image_id']].append(category_mapping[row['category_id']])
-        
-        annot_df.insert(1, 'categories', image_cats.values())
-        annot_df.insert(2, 'super_categories', list(map(multihot_encode, list(image_supercats.values()))))
+            for dic in instances_df.categories:
+                category_mapping[dic['id']] = numeric_mapping[dic['supercategory']]
+            
+            image_cats = {i : [] for i in list(annot_df.index)}
+            image_supercats = {i : [] for i in list(annot_df.index)}
+            
+            for row in instances_df.annotations:
+                image_cats[row['image_id']].append(row['category_id'])
+                image_supercats[row['image_id']].append(category_mapping[row['category_id']])
+            
+            annot_df.insert(1, 'categories', image_cats.values())
+            annot_df.insert(2, 'super_categories', list(map(multihot_encode, list(image_supercats.values()))))
+except Exception as e:
+    print('Exception thrown:', e)
+    print(traceback.format_exc())
+    exit(0)
 
 print("Generated.")
 
